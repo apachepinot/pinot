@@ -20,22 +20,8 @@
 
 set -e
 
-if [ -z "${BUILD_PLATFORM}" ]; then
-  exit 1
-fi
+docker manifest create apachepinot/pinot-base-${BASE_IMAGE_TYPE}:${TAG} \
+    --amend apachepinot/pinot-base-${BASE_IMAGE_TYPE}:${TAG}-amd64 \
+    --amend apachepinot/pinot-base-${BASE_IMAGE_TYPE}:${TAG}-arm64
 
-if [ -z "${BASE_IMAGE_TYPE}" ]; then
-  exit 1
-fi
-
-cd docker/images/pinot-base/pinot-base-${BASE_IMAGE_TYPE}
-
-docker build \
-  --no-cache \
-  --platform=${BUILD_PLATFORM} \
-  --file ${OPEN_JDK_DIST}.dockerfile \
-  --tag apachepinot/pinot-base-${BASE_IMAGE_TYPE}:${TAG}-${ARCH} \
-  --build-arg JAVA_VERSION=${JDK_VERSION:-11} \
-  --build-arg ARCH=${ARCH} \
-  --push \
-  .
+docker manifest push apachepinot/pinot-base-${BASE_IMAGE_TYPE}:${TAG}
