@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-name: Pinot Multi-Arch Platform Docker Image Build and Publish
+name: Pinot Release Amazon Corretto 21 Multi-Arch Platform Docker Image Build and Publish
 
 on:
   workflow_dispatch:
@@ -45,7 +45,7 @@ jobs:
       commit-id: ${{ steps.generate-build-info.outputs.commit-id }}
       tags: ${{ steps.generate-build-info.outputs.tags }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       - name: Generate Build Info
         id: generate-build-info
         env:
@@ -59,51 +59,57 @@ jobs:
     strategy:
       matrix:
         arch: ["amd64", "arm64"]
-        base-image-tag: ["11-amazoncorretto", "11-ms-openjdk"]
-    name: Build Pinot Docker Image on ${{ matrix.arch }} with base image ${{ matrix.base-image-tag }}
+        java-disto: ["amazoncorretto"]
+        java-version: ["21"]
+    name: Build Pinot Docker Image on ${{ matrix.arch }} with java disto ${{ matrix.java-disto }}
     needs: [generate-build-info]
     steps:
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v2
         name: Set up QEMU
         with:
           platforms: linux/${{ matrix.arch }}
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v2
         name: Set up Docker Buildx
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       - name: Build and push the Docker image
         env:
           DOCKER_FILE_BASE_DIR: "docker/images/pinot"
           DOCKER_IMAGE_NAME: ${{ github.event.inputs.dockerImageName }}
           BUILD_PLATFORM: "linux/${{ matrix.arch }}"
-          BASE_IMAGE_TAG: ${{ matrix.base-image-tag }}
-          RUNTIME_IMAGE_TAGS: "${{ matrix.base-image-tag }}"
+          BASE_IMAGE_TAG: "11-${{ matrix.java-disto }}"
+          RUNTIME_IMAGE_TAGS: "${{ matrix.java-version }}-${{ matrix.java-disto }}"
           PINOT_GIT_URL: ${{ github.event.inputs.gitUrl }}
           PINOT_BRANCH: "${{needs.generate-build-info.outputs.commit-id}}"
           TAGS: "${{needs.generate-build-info.outputs.tags}}"
         run: .github/workflows/scripts/docker/.pinot_single_platform_docker_image_build.sh
+        timeout-minutes: 240
   create-multi-arch-manifest:
     name: Create Multi-Arch Manifest
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java-disto: ["amazoncorretto"]
+        java-version: ["21"]
     needs: [generate-build-info, build-pinot-docker-image]
     steps:
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v2
         name: Set up QEMU
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v2
         name: Set up Docker Buildx
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
       - name: Create Multi-Arch Manifest
         env:
           TAGS: "${{needs.generate-build-info.outputs.tags}}"
           BUILD_PLATFORM: "linux/arm64,linux/amd64"
-          BASE_IMAGE_TAGS: "11-amazoncorretto,11-ms-openjdk"
+          BASE_IMAGE_TAGS: "${{ matrix.java-version }}-${{ matrix.java-disto }}"
         run: .github/workflows/scripts/docker/.pinot_multi_arch_docker_image_manifest_package.sh
